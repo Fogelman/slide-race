@@ -11,6 +11,14 @@
 											"-- Compiled: "__DATE__                            \
 											" "__TIME__                                        \
 											" --" STRING_EOL
+											
+#define  MUS_LED_PIO  PIOC
+#define  MUS_LED_MASK (1u << 8u)
+
+#define BUZZ_PIO		  PIOA
+#define BUZZ_PIO_ID		  ID_PIOA
+#define BUZZ_PIO_IDX       6u
+#define BUZZ_PIO_IDX_MASK  (1u << BUZZ_PIO_IDX)
 
 /** IP address of host. */
 uint32_t gu32HostIp = 0;
@@ -400,6 +408,25 @@ static void task_monitor(void *pvParameters) {
 	}
 }
 
+void buzz(int frequency, int duration){
+	double i = duration*1000;
+	long delay = 1000000.0/frequency;
+	if(frequency != 0){
+		pio_clear(PIOC, MUS_LED_MASK);
+		while(i > 0){
+			pio_clear(PIOA, BUZZ_PIO_IDX_MASK);
+			delay_us(delay);
+			pio_set(PIOA, BUZZ_PIO_IDX_MASK);
+			delay_us(delay);
+			i-= delay*2;
+		}
+		pio_set(PIOC, MUS_LED_MASK);
+		}else{
+		delay_ms(duration);
+	}
+	
+}
+
 static void task_wifi(void *pvParameters) {
 	tstrWifiInitParam param;
 	int8_t ret;
@@ -440,7 +467,7 @@ static void task_wifi(void *pvParameters) {
 			/* Open client socket. */
 			if (tcp_client_socket < 0) {
 				printf("socket init \n");
-				if ((tcp_client_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+				if ((tcp_client_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0){
 					printf("main: failed to create TCP client socket error!\r\n");
 					continue;
 				}
@@ -455,9 +482,9 @@ static void task_trigger(void *pvParameters) {
 	struct sockaddr_in addr_in;
 	addr_in.sin_family = AF_INET;
 	addr_in.sin_port = _htons(MAIN_SERVER_PORT);
-	//Se tem o IP
 	
 	while(true){
+	
 		if(wifi_connected == M2M_WIFI_CONNECTED){
 			//Tem o IP e o socket
 			if (gbHostIpByName && (tcp_client_socket >= 0)) {
@@ -468,6 +495,16 @@ static void task_trigger(void *pvParameters) {
 				if (connect(tcp_client_socket, (struct sockaddr *)&addr_in, sizeof(struct sockaddr_in)) == SOCK_ERR_NO_ERROR) {
 					printf("Ae, deu certo, TCP socket started\n");
 					gbTcpConnection = true;
+					//puhh puuh puuh PUAAAHH
+					buzz(500,500);
+					vTaskDelay(500);
+					buzz(500,500);
+					vTaskDelay(500);
+					buzz(500,500);
+					vTaskDelay(500);
+					buzz(1000,1000);
+					//LIGA O LED VERDE RAPAH
+					
 					} else {
 					close(tcp_client_socket);
 					tcp_client_socket = -1;
@@ -484,6 +521,7 @@ static void task_trigger(void *pvParameters) {
 			printf("Scanning networks...\n");
 		}
 		vTaskDelay(2000);
+		//DESLIGA O LED VERDE RAPAH
 	}
 }
 /**
