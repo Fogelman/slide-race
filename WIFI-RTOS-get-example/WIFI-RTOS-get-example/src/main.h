@@ -47,6 +47,14 @@ extern "C" {
 
 #include "driver/include/m2m_wifi.h"
 
+#define YEAR        2018
+#define MONTH       3
+#define DAY         1
+#define WEEK        12
+#define HOUR        15
+#define MINUTE      45
+#define SECOND      0
+
 /** Wi-Fi Settings */
 #define MAIN_WLAN_SSID                    "asimov1" /**< Destination SSID */
 #define MAIN_WLAN_AUTH                    M2M_WIFI_SEC_WPA_PSK /**< Security manner */

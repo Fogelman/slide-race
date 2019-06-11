@@ -20,6 +20,11 @@
 #define BUZZ_PIO_IDX       6u
 #define BUZZ_PIO_IDX_MASK  (1u << BUZZ_PIO_IDX)
 
+#define BUT_PIO_ID			  ID_PIOA
+#define BUT_PIO				  PIOA
+#define BUT_PIN				  11
+#define BUT_PIN_MASK		  (1 << BUT_PIN)
+
 /** IP address of host. */
 uint32_t gu32HostIp = 0;
 
@@ -57,6 +62,8 @@ char server_host_name[30] = MAIN_SERVER_NAME;
 
 #define TASK_TRIGGER_STACK_SIZE (512 / sizeof(portSTACK_TYPE))
 #define TASK_TRIGGER_STACK_PRIORITY (tskIDLE_PRIORITY)
+
+SemaphoreHandle_t xwifiSemaphore;
 
 extern void vApplicationStackOverflowHook(xTaskHandle *pxTask,
 																					signed char *pcTaskName);
@@ -100,6 +107,12 @@ extern void vApplicationMallocFailedHook(void) {
 	/* Force an assert. */
 	configASSERT((volatile void *)NULL);
 }
+
+static void Button1_Handler(uint32_t id, uint32_t mask){
+	
+	xSemaphoreGiveFromISR( xwifiSemaphore, NULL );
+}
+
 
 /**
  * \brief Configure UART console.
@@ -376,7 +389,12 @@ static void wifi_cb(uint8_t u8MsgType, void *pvMsg) {
 			/* Print the hour, minute and second.
 			* GMT is the time at Greenwich Meridian.
 			*/
-		
+			rtc_set_date(RTC, strSysTime_now->u16Year,
+							strSysTime_now->u8Month, DAY,WEEK);
+			rtc_set_time(RTC, 
+							strSysTime_now->u8Hour, 
+							strSysTime_now->u8Minute, 
+							strSysTime_now->u8Second);
 			printf("socket_cb: Year: %d, Month: %d, The GMT time is %u:%02u:%02u\r\n",
 					strSysTime_now->u16Year,
 					strSysTime_now->u8Month,
@@ -480,12 +498,20 @@ static void task_wifi(void *pvParameters) {
 
 static void task_trigger(void *pvParameters) {
 	struct sockaddr_in addr_in;
+	xwifiSemaphore = xSemaphoreCreateBinary();
+	if(xwifiSemaphore == NULL){
+		while (1)
+		{
+			printf("No semaphore 4u\r\n");
+			vTaskDelay(1000);
+		}
+	}
 	addr_in.sin_family = AF_INET;
 	addr_in.sin_port = _htons(MAIN_SERVER_PORT);
-	
+	int running = 0;
 	while(true){
-	
-		if(wifi_connected == M2M_WIFI_CONNECTED){
+		
+		if(wifi_connected == M2M_WIFI_CONNECTED && running){
 			//Tem o IP e o socket
 			if (gbHostIpByName && (tcp_client_socket >= 0)) {
 				/* Connect server */
@@ -495,6 +521,7 @@ static void task_trigger(void *pvParameters) {
 				if (connect(tcp_client_socket, (struct sockaddr *)&addr_in, sizeof(struct sockaddr_in)) == SOCK_ERR_NO_ERROR) {
 					printf("Ae, deu certo, TCP socket started\n");
 					gbTcpConnection = true;
+					running = 0;
 					//puhh puuh puuh PUAAAHH
 					buzz(500,500);
 					vTaskDelay(500);
@@ -517,13 +544,59 @@ static void task_trigger(void *pvParameters) {
 				printf("Problema: N temos socket: %d\n", tcp_client_socket);
 			}
 		//Wifi not connected
-		}else{
+		}else if(running){
 			printf("Scanning networks...\n");
+			vTaskDelay(2000);
+		}else{
+			if(xSemaphoreTake( xwifiSemaphore, ( TickType_t ) 0 ) == pdTRUE){
+				running = 1;
+				printf("got semaphore\r\n");
+			}
+			running = 1;
+			vTaskDelay(2000);
 		}
-		vTaskDelay(2000);
+		
 		//DESLIGA O LED VERDE RAPAH
 	}
 }
+
+void RTC_init(){
+	/* Configura o PMC */
+	pmc_enable_periph_clk(ID_RTC);
+
+	/* Default RTC configuration, 24-hour mode */
+	rtc_set_hour_mode(RTC, 0);
+
+	/* Configura data e hora manualmente */
+	rtc_set_date(RTC, YEAR, MONTH, DAY, WEEK);
+	rtc_set_time(RTC, HOUR, MINUTE, SECOND);
+
+	/* Configure RTC interrupts */
+	//NVIC_DisableIRQ(RTC_IRQn);
+	//NVIC_ClearPendingIRQ(RTC_IRQn);
+	//NVIC_SetPriority(RTC_IRQn, 0);
+	//NVIC_EnableIRQ(RTC_IRQn);
+
+	/* Ativa interrupcao via alarme */
+	//rtc_enable_interrupt(RTC,  RTC_IER_ALREN);
+
+}
+
+void Input_init(void){
+	/* config. pino botao em modo de entrada */
+	pmc_enable_periph_clk(BUT_PIO);
+	pio_set_input(BUT_PIO, BUT_PIN_MASK, PIO_PULLUP | PIO_DEBOUNCE);
+
+	/* config. interrupcao em borda de descida no botao do kit */
+	/* indica funcao (but_Handler) a ser chamada quando houver uma interrupção */
+	pio_enable_interrupt(BUT_PIO, BUT_PIN_MASK);
+	pio_handler_set(BUT_PIO, BUT_PIO_ID, BUT_PIN_MASK, PIO_IT_FALL_EDGE, Button1_Handler);
+
+	/* habilita interrupçcão do PIO que controla o botao */
+	/* e configura sua prioridade                        */
+	NVIC_EnableIRQ(BUT_PIO_ID);
+	NVIC_SetPriority(BUT_PIO_ID, 4);
+};
 /**
  * \brief Main application function.
  *
@@ -535,7 +608,8 @@ int main(void) {
 	/* Initialize the board. */
 	sysclk_init();
 	board_init();
-
+	RTC_init();
+	//Input_init();
 	/* Initialize the UART console. */
 	configure_console();
 	printf(STRING_HEADER);
