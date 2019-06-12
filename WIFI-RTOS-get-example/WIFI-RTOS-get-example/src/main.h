@@ -56,10 +56,10 @@ extern "C" {
 #define SECOND      0
 
 /** Wi-Fi Settings */
-#define MAIN_WLAN_SSID                    "asimov1" /**< Destination SSID */
+#define MAIN_WLAN_SSID                    "ANF" /**< Destination SSID */
 #define MAIN_WLAN_AUTH                    M2M_WIFI_SEC_WPA_PSK /**< Security manner */
-#define MAIN_WLAN_PSK                     "a ultima pergunta" /**< Password for Destination SSID */
-
+#define MAIN_WLAN_PSK                     "Orcamento2014" /**< Password for Destination SSID */
+#define DEVICE 10101
 #define MAIN_MAC_ADDRESS                     {0x42, 0x00, 0x61, 0x43, 0xf9, 0x3f}
 
 /** Using broadcast address for simplicity. */
